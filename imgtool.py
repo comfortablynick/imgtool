@@ -19,7 +19,7 @@ y_margin = 25
 
 im = pyvips.Image.new_from_file(in_filename, access=pyvips.Access.SEQUENTIAL)
 
-text = pyvips.Image.text(watermark_text, width=2000, dpi=300, font=f"{font}")
+text = pyvips.Image.text(watermark_text, width=im.width, dpi=300, font=f"{font}")
 text = text.rotate(rotate_degrees)
 text = (text * watermark_opacity).cast("uchar")
 text = text.embed(x_margin, (im.height - text.height) - y_margin, im.width, im.height)
