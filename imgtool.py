@@ -4,7 +4,7 @@
 import pyvips
 import logging
 from dataclasses import dataclass
-from typing import Tuple, NamedTuple, Any
+from typing import NamedTuple, Any
 
 logging.basicConfig(level=logging.INFO)
 LOG = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ class CMYK(NamedTuple):
 
 @dataclass
 class TextWatermark:
-    """Specify settings of text watermark."""
+    """Text watermark that can be blended with an image."""
 
     text: str
     fg_color: RGB = RGB(0, 0, 0)
@@ -95,10 +95,12 @@ class TextWatermark:
 
 def rgb_to_cmyk(rgb: RGB) -> CMYK:
     """Convert rgb color to cmyk color."""
-    float2int = lambda n: int(round(n))
+    # Convert float to rounded int
+    def float2int(n: float):
+        return int(round(n))
 
-    # Convert from 0..255 to 0..1
     LOG.info("RBG value: %s", rgb)
+    # Convert from 0..255 to 0..1
     rgb_adj = (rgb.r / 255, rgb.g / 255, rgb.b / 255)
     k = float2int(1 - max(rgb_adj))
     c = float2int((1 - rgb_adj[0] - k) / (1 - k))
@@ -117,21 +119,41 @@ def rgb_to_grayscale(rgb: RGB) -> int:
     return gray
 
 
+def resize(im: pyvips.Image, width: int, height: int) -> pyvips.Image:
+    """Resize image."""
+    resized = im.thumbnail_image(width, height=height)
+    return resized
+
+
 def main():
     """Entry point."""
     in_filename = "./test/chin_class.jpg"
     out_filename = "./test/chin_class_edited.jpg"
     watermark_text = "© 2019 Nick Murphy | murphpix.com"
+    quality = 75
+    progressive = True
+    no_subsample = True if quality > 75 else False
+    strip_exif = False
     LOG.info("Adding watermark '%s'", watermark_text)
 
     im = pyvips.Image.new_from_file(in_filename, access=pyvips.Access.SEQUENTIAL)
     watermark = TextWatermark(watermark_text)
-    watermark.font = "Source Sans Pro 16"
+    watermark.font = "Source Sans Pro 14"
+    watermark.fg_color = RGB(255, 255, 255)
     watermark.rotate = -90
-    watermark.opacity = 1
+    watermark.opacity = 0.9
 
     im = watermark.add_to_image(im)
-    im.write_to_file(out_filename)
+    resize_opts = {"width": 2000, "height": 2000}
+    im = resize(im, **resize_opts)
+    write_opts = {
+        "Q": quality,
+        "no_subsample": no_subsample,
+        "interlace": progressive,
+        "strip": strip_exif,
+    }
+    LOG.info("Writing '%s' with options: %s", out_filename, write_opts)
+    im.write_to_file(out_filename, **write_opts)
 
 
 if __name__ == "__main__":
