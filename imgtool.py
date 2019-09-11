@@ -5,9 +5,15 @@ import pyvips
 import logging
 from dataclasses import dataclass
 from typing import NamedTuple, Any
+import argparse
+import sys
 
 logging.basicConfig(level=logging.INFO)
 LOG = logging.getLogger(__name__)
+
+# test files
+in_filename = "./test/chin_class.jpg"
+out_filename = "./test/chin_class_edited.jpg"
 
 
 class RGB(NamedTuple):
@@ -125,10 +131,50 @@ def resize(im: pyvips.Image, width: int, height: int) -> pyvips.Image:
     return resized
 
 
+def parse_args(args: list):
+    """Parse command line arguments."""
+    # flags
+    parser = argparse.ArgumentParser(prog="imgtool")
+    parser.add_argument(
+        "-v",
+        "--verbosity",
+        help="increase logging output to console",
+        action="count",
+        default=0,
+    )
+    parser.add_argument("-V", "--version", action="version", version="%(prog)s 0.0.1")
+
+    # positionals
+    parser.add_argument(
+        "infile",
+        help="image file to process",
+        nargs="?",
+        type=argparse.FileType("r"),
+        #  default=sys.stdin,
+        default=in_filename,
+    )
+    parser.add_argument(
+        "outfile",
+        help="file to save processed image",
+        nargs="?",
+        type=argparse.FileType("w"),
+        #  default=sys.stdout,
+        default=out_filename,
+    )
+    return parser.parse_args(args)
+
+
 def main():
     """Entry point."""
-    in_filename = "./test/chin_class.jpg"
-    out_filename = "./test/chin_class_edited.jpg"
+    args = parse_args(sys.argv)
+    # TODO: multiply verbosity by logging level to simplify
+    if args.verbosity == 0:
+        logging.disable(30)
+    if args.verbosity == 1:
+        logging.disable(20)
+    if args.verbosity >= 2:
+        logging.disable(10)
+    LOG.debug(args)
     watermark_text = "© 2019 Nick Murphy | murphpix.com"
     quality = 75
     progressive = True
