@@ -149,6 +149,7 @@ def parse_args(args: list):
         "infile",
         help="image file to process",
         nargs="?",
+        metavar="INPUT",
         type=argparse.FileType("r"),
         #  default=sys.stdin,
         default=in_filename,
@@ -157,6 +158,7 @@ def parse_args(args: list):
         "outfile",
         help="file to save processed image",
         nargs="?",
+        metavar="OUTPUT",
         type=argparse.FileType("w"),
         #  default=sys.stdout,
         default=out_filename,
@@ -167,13 +169,12 @@ def parse_args(args: list):
 def main():
     """Entry point."""
     args = parse_args(sys.argv)
-    # TODO: multiply verbosity by logging level to simplify
-    if args.verbosity == 0:
-        logging.disable(30)
-    if args.verbosity == 1:
-        logging.disable(20)
-    if args.verbosity >= 2:
-        logging.disable(10)
+    log_level = 0
+    try:
+        log_level = (0, 20, 10)[args.verbosity]
+    except IndexError:
+        log_level = 10
+    LOG.setLevel(log_level)
     LOG.debug(args)
     watermark_text = "© 2019 Nick Murphy | murphpix.com"
     quality = 75
