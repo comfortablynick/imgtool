@@ -16,6 +16,7 @@ LOG = logging.getLogger(__name__)
 in_filename = os.path.expanduser("~/git/imgtool/test/sunset.jpg")
 out_filename = os.path.expanduser("~/git/imgtool/test/sunset_edited.jpg")
 watermark_text = "© 2019 Nick Murphy | murphpix.com"
+suffix = "_edited"
 
 
 class RGB(NamedTuple):
@@ -50,6 +51,7 @@ class TextWatermark:
 
     def add_to_image(self, im: pyvips.Image) -> pyvips.Image:
         """Add watermark to supplied image."""
+        LOG.info("Adding watermark '%s'", self.text)
         text = pyvips.Image.text(
             self.text, width=im.width, dpi=300, font=f"{self.font}"
         )
@@ -136,28 +138,35 @@ def resize(im: pyvips.Image, width: int, height: int) -> pyvips.Image:
 def parse_args(args: list):
     """Parse command line arguments."""
     # flags
-    parser = argparse.ArgumentParser(prog="imgtool")
-    parser.add_argument(
-        "-wt",
-        help="text to display in watermark",
-        nargs="?",
-        default=watermark_text,
-        metavar="TEXT",
-    ),
+    desc = (
+        "A command-line utility which uses the vips library to manipulate "
+        "images for web vewing. Images can be resampled, resized, and "
+        "compressed at custom quality levels. Watermarking can also be added."
+    )
+    parser = argparse.ArgumentParser(prog="imgtool", description=desc, add_help=False)
     parser.add_argument(
         "-v",
-        "--verbosity",
         help="increase logging output to console",
         action="count",
+        dest="verbosity",
         default=0,
     )
-    parser.add_argument("-V", "--version", action="version", version="%(prog)s 0.0.1")
+    parser.add_argument("-h", action="help", help="show this help message and exit")
+    parser.add_argument("--help", action="help", help=argparse.SUPPRESS)
+    parser.add_argument("-V", action="version", version="%(prog)s 0.0.1")
+    parser.add_argument(
+        "-s",
+        nargs=1,
+        help="text suffix appended to INPUT path if no OUTPUT file given",
+        metavar="TEXT",
+        default=suffix,
+    )
 
-    # positionals
+    # Positionals
     parser.add_argument(
         "infile",
         help="image file to process",
-        nargs="?",
+        nargs=1,
         metavar="INPUT",
         type=argparse.FileType("r"),
         #  default=sys.stdin,
@@ -172,7 +181,40 @@ def parse_args(args: list):
         #  default=sys.stdout,
         default=out_filename,
     )
-    return parser.parse_args(args)
+
+    # Image group
+    image_group = parser.add_argument_group("General image options")
+    image_group.add_argument(
+        "-wt",
+        help="text to display in watermark",
+        default=watermark_text,
+        dest="watermark_text",
+        metavar="TEXT",
+    ),
+
+    # Jpg group
+    jpg_group = parser.add_argument_group("Jpeg options")
+    jpg_group.add_argument(
+        "-q",
+        help="Quality setting for jpeg files (an integer between 1 and 100; default: 75)",
+        type=int,
+        dest="jpg_quality",
+        default=75,
+        metavar="QUALITY",
+    )
+
+    if parser._positionals.title is not None:
+        parser._positionals.title = "Arguments"
+    if parser._optionals.title is not None:
+        parser._optionals.title = "Options"
+    parsed = parser.parse_args(args)
+
+    # do rudimentary checks
+    if not 0 <= parsed.jpg_quality <= 100:
+        parser.exit(
+            1, f"Quality (-q) must be within 0-100; found: {parsed.jpg_quality}\n"
+        )
+    return parsed
 
 
 def main():
@@ -186,14 +228,13 @@ def main():
     LOG.setLevel(log_level)
     logging.getLogger("pyvips").setLevel(log_level)
     LOG.debug(args)
-    quality = 75
+    quality = args.jpg_quality
     progressive = True
     no_subsample = True if quality > 75 else False
     strip_exif = False
-    LOG.info("Adding watermark '%s'", watermark_text)
 
     im = pyvips.Image.new_from_file(in_filename, access=pyvips.Access.SEQUENTIAL)
-    watermark = TextWatermark(watermark_text)
+    watermark = TextWatermark(args.watermark_text)
     watermark.font = "Source Sans Pro 14"
     watermark.fg_color = RGB(255, 255, 255)
     watermark.rotate = -90
