@@ -7,13 +7,15 @@ from dataclasses import dataclass
 from typing import NamedTuple, Any
 import argparse
 import sys
+import os
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 LOG = logging.getLogger(__name__)
 
-# test files
-in_filename = "./test/chin_class.jpg"
-out_filename = "./test/chin_class_edited.jpg"
+# test defaults
+in_filename = os.path.expanduser("~/git/imgtool/test/sunset.jpg")
+out_filename = os.path.expanduser("~/git/imgtool/test/sunset_edited.jpg")
+watermark_text = "© 2019 Nick Murphy | murphpix.com"
 
 
 class RGB(NamedTuple):
@@ -136,6 +138,13 @@ def parse_args(args: list):
     # flags
     parser = argparse.ArgumentParser(prog="imgtool")
     parser.add_argument(
+        "-wt",
+        help="text to display in watermark",
+        nargs="?",
+        default=watermark_text,
+        metavar="TEXT",
+    ),
+    parser.add_argument(
         "-v",
         "--verbosity",
         help="increase logging output to console",
@@ -175,8 +184,8 @@ def main():
     except IndexError:
         log_level = 10
     LOG.setLevel(log_level)
+    logging.getLogger("pyvips").setLevel(log_level)
     LOG.debug(args)
-    watermark_text = "© 2019 Nick Murphy | murphpix.com"
     quality = 75
     progressive = True
     no_subsample = True if quality > 75 else False

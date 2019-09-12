@@ -4,8 +4,9 @@ alias r := run
 alias b := build
 alias i := install
 
-run:
-    python imgtool.py
+# Run with optional args
+run +args='':
+	./imgtool.py {{args}}
 
 # Define this in case vim calls it
 build:
@@ -14,6 +15,3 @@ build:
 # Define this in case vim calls it
 install:
     python imgtool.py
-
-imgtool +args='':
-	./imgtool.py {{args}}
