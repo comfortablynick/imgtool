@@ -185,6 +185,12 @@ def parse_args(args: list):
     # Image group
     image_group = parser.add_argument_group("General image options")
     image_group.add_argument(
+        "-mw", help="maximum width of output", dest="width", metavar="WIDTH"
+    )
+    image_group.add_argument(
+        "-mh", help="maximum height of output", dest="height", metavar="HEIGHT"
+    )
+    image_group.add_argument(
         "-wt",
         help="text to display in watermark",
         default=watermark_text,
