@@ -60,13 +60,32 @@ def oppose(value, mx):
 im = pyvips.Image.new_from_file(sys.argv[1])
 
 text = pyvips.Image.text(
-    sys.argv[3], width=500, dpi=300, align="centre", font="sans 16"
+    sys.argv[3], width=im.width, dpi=300, align="centre", font="sans 16"
 )
 #  text = text.rotate(45)
 
 # the position of the overlay in the image
-left = im.width - text.width - 25
-top = 25
+#  x_pos = im.width - text.width - 25
+#  top = 25
+#  y_pos = im.height - text.height - 25
+margin = 25
+position = sys.argv[4]
+
+if position == "top-left":
+    x_pos = margin
+    y_pos = margin
+elif position == "top-right":
+    x_pos = im.width - text.width - margin
+    y_pos = margin
+elif position == "bottom-right":
+    x_pos = im.width - text.width - margin
+    y_pos = im.height - text.height - margin
+elif position == "bottom-left":
+    x_pos = margin
+    y_pos = im.height - text.height - margin
+else:
+    print(f"Incorrect watermark position: {position}")
+    sys.exit(1)
 
 # find the non-alpha image bands
 if im.hasalpha():
@@ -75,7 +94,7 @@ else:
     no_alpha = im
 
 # the pixels we will render the overlay on top of
-bg = no_alpha.crop(left, top, text.width, text.height)
+bg = no_alpha.crop(x_pos, y_pos, text.width, text.height)
 
 # mask the background with the text, so all non-text areas become zero, and find
 # the zero-excluding average
@@ -91,6 +110,6 @@ overlay = bg.new_from_image(text_colour)
 overlay = overlay.bandjoin((text * 0.5).cast("uchar"))
 
 # and composite that on to the original image
-im = im.composite(overlay, "over", x=left, y=top)
+im = im.composite(overlay, "over", x=x_pos, y=y_pos)
 
 im.write_to_file(sys.argv[2])

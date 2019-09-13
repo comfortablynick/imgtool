@@ -7,16 +7,15 @@ from dataclasses import dataclass
 from typing import NamedTuple, Any
 import argparse
 import sys
-import os
 
 logging.basicConfig(level=logging.WARNING)
 LOG = logging.getLogger(__name__)
 
 # test defaults
-in_filename = os.path.expanduser("~/git/imgtool/test/sunset.jpg")
-out_filename = os.path.expanduser("~/git/imgtool/test/sunset_edited.jpg")
-watermark_text = "© 2019 Nick Murphy | murphpix.com"
-suffix = "_edited"
+#  in_filename = os.path.expanduser("~/git/imgtool/test/sunset.jpg")
+#  out_filename = os.path.expanduser("~/git/imgtool/test/sunset_edited.jpg")
+#  watermark_text = "© 2019 Nick Murphy | murphpix.com"
+DEFAULT_SUFFIX = "_edited"
 
 
 class RGB(NamedTuple):
@@ -144,6 +143,12 @@ def parse_args(args: list):
         "compressed at custom quality levels. Watermarking can also be added."
     )
     parser = argparse.ArgumentParser(prog="imgtool", description=desc, add_help=False)
+
+    # Positionals
+    parser.add_argument("input", help="image file to process", metavar="INPUT")
+    parser.add_argument("output", help="file to save processed image", metavar="OUTPUT")
+
+    # Flags
     parser.add_argument(
         "-v",
         help="increase logging output to console",
@@ -159,41 +164,31 @@ def parse_args(args: list):
         nargs=1,
         help="text suffix appended to INPUT path if no OUTPUT file given",
         metavar="TEXT",
-        default=suffix,
-    )
-
-    # Positionals
-    parser.add_argument(
-        "infile",
-        help="image file to process",
-        nargs=1,
-        metavar="INPUT",
-        type=argparse.FileType("r"),
-        #  default=sys.stdin,
-        default=in_filename,
-    )
-    parser.add_argument(
-        "outfile",
-        help="file to save processed image",
-        nargs="?",
-        metavar="OUTPUT",
-        type=argparse.FileType("w"),
-        #  default=sys.stdout,
-        default=out_filename,
+        default=DEFAULT_SUFFIX,
     )
 
     # Image group
     image_group = parser.add_argument_group("General image options")
     image_group.add_argument(
-        "-mw", help="maximum width of output", dest="width", metavar="WIDTH"
+        "-mw",
+        help="maximum width of output",
+        dest="width",
+        metavar="WIDTH",
+        type=int,
+        default=0,
     )
     image_group.add_argument(
-        "-mh", help="maximum height of output", dest="height", metavar="HEIGHT"
+        "-mh",
+        help="maximum height of output",
+        dest="height",
+        metavar="HEIGHT",
+        default=0,
+        type=int,
     )
     image_group.add_argument(
         "-wt",
         help="text to display in watermark",
-        default=watermark_text,
+        type=str,
         dest="watermark_text",
         metavar="TEXT",
     ),
@@ -213,7 +208,7 @@ def parse_args(args: list):
         parser._positionals.title = "Arguments"
     if parser._optionals.title is not None:
         parser._optionals.title = "Options"
-    parsed = parser.parse_args(args)
+    parsed = parser.parse_intermixed_args(args)
 
     # do rudimentary checks
     if not 0 <= parsed.jpg_quality <= 100:
@@ -225,7 +220,7 @@ def parse_args(args: list):
 
 def main():
     """Entry point."""
-    args = parse_args(sys.argv)
+    args = parse_args(sys.argv[1:])
     log_level = 0
     try:
         log_level = (0, 20, 10)[args.verbosity]
@@ -234,29 +229,30 @@ def main():
     LOG.setLevel(log_level)
     logging.getLogger("pyvips").setLevel(log_level)
     LOG.debug(args)
-    quality = args.jpg_quality
     progressive = True
-    no_subsample = True if quality > 75 else False
+    no_subsample = True if args.jpg_quality > 75 else False
     strip_exif = False
 
-    im = pyvips.Image.new_from_file(in_filename, access=pyvips.Access.SEQUENTIAL)
-    watermark = TextWatermark(args.watermark_text)
-    watermark.font = "Source Sans Pro 14"
-    watermark.fg_color = RGB(255, 255, 255)
-    watermark.rotate = -90
-    watermark.opacity = 0.9
+    im = pyvips.Image.new_from_file(args.input, access=pyvips.Access.SEQUENTIAL)
+    if args.watermark_text:
+        watermark = TextWatermark(args.watermark_text)
+        watermark.font = "Source Sans Pro 14"
+        watermark.fg_color = RGB(255, 255, 255)
+        watermark.rotate = -90
+        watermark.opacity = 0.9
+        im = watermark.add_to_image(im)
 
-    im = watermark.add_to_image(im)
-    resize_opts = {"width": 2000, "height": 2000}
-    im = resize(im, **resize_opts)
+    if args.width or args.height:
+        im = resize(im, width=args.width, height=args.height)
+
     write_opts = {
-        "Q": quality,
+        "Q": args.jpg_quality,
         "no_subsample": no_subsample,
         "interlace": progressive,
         "strip": strip_exif,
     }
-    LOG.info("Writing '%s' with options: %s", out_filename, write_opts)
-    im.write_to_file(out_filename, **write_opts)
+    LOG.info("Writing '%s' with options: %s", args.input, write_opts)
+    im.write_to_file(args.output, **write_opts)
 
 
 if __name__ == "__main__":
