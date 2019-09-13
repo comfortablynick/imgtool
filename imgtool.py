@@ -12,12 +12,6 @@ from enum import Enum
 logging.basicConfig()
 LOG = logging.getLogger(__name__)
 
-# test defaults
-#  in_filename = os.path.expanduser("~/git/imgtool/test/sunset.jpg")
-#  out_filename = os.path.expanduser("~/git/imgtool/test/sunset_edited.jpg")
-#  watermark_text = "© 2019 Nick Murphy | murphpix.com"
-DEFAULT_SUFFIX = "_edited"
-
 
 def parse_args(args: list):
     """Parse command line arguments."""
@@ -49,7 +43,7 @@ def parse_args(args: list):
         nargs=1,
         help="text suffix appended to INPUT path if no OUTPUT file given",
         metavar="TEXT",
-        default=DEFAULT_SUFFIX,
+        default="_edited",
     )
     parser.add_argument(
         "-n",
@@ -60,6 +54,9 @@ def parse_args(args: list):
 
     # Image group
     image_group = parser.add_argument_group("General image options")
+    image_group.add_argument(
+        "-ke", help="keep exif data", dest="keep_exif", action="store_true"
+    )
     image_group.add_argument(
         "-mw",
         help="maximum width of output",
@@ -236,33 +233,27 @@ class TextWatermark:
         # we want to blend into the visible part of the image and leave any alpha
         # channels untouched ... we need to split im into two parts
         # guess how many bands from the start of im contain visible colour information
-        if im.bands >= 4 and im.interpretation == pyvips.Interpretation.CMYK:
-            # cmyk image
-            n_visible_bands = 4
-            text_color: Any = list(rgb_to_cmyk(self.fg_color))
-        elif im.bands < 4:
-            # rgb image
-            n_visible_bands = 3
-            text_color = list(self.fg_color)
-        else:
-            # mono image
-            n_visible_bands = 1
-            text_color = rgb_to_grayscale(self.fg_color)
-        LOG.info("Watermark fg_color: %s (original: %s)", text_color, self.fg_color)
-
-        # split into image and alpha
-        if im.bands > n_visible_bands:
-            alpha = im.extract_band(n_visible_bands, n=im.bands - n_visible_bands)
-            im = im.extract_band(0, n=n_visible_bands)
+        if im.hasalpha():
+            alpha = im.extract_band(im.bands - 1)
+            im = im.extract_band(0, n=im.bands - 1)
         else:
             alpha = None
 
+        if im.bands == 4:
+            # cmyk
+            text_color: Any = list(rgb_to_cmyk(self.fg_color))
+        elif im.bands == 3:
+            # rgb
+            text_color = list(self.fg_color)
+        else:
+            # mono
+            text_color = rgb_to_grayscale(self.fg_color)
+        LOG.info("Watermark fg_color: %s (original: %s)", text_color, self.fg_color)
         im = text.ifthenelse(text_color, im, blend=True)
 
         # reattach alpha
         if alpha:
             im = im.bandjoin(alpha)
-
         return im
 
     def add(self, im: pyvips.Image) -> pyvips.Image:
@@ -367,11 +358,6 @@ def main():
     LOG.debug(args)
     progressive = True
     no_subsample = True if args.jpg_quality > 75 else False
-    strip_exif = False
-
-    #  with open(args.input, "rb") as f:
-    #      in_buf = f.read()
-    #  im = pyvips.Image.new_from_buffer(in_buf, "")
 
     im = pyvips.Image.new_from_file(args.input)
     if args.watermark_text:
@@ -381,7 +367,7 @@ def main():
         watermark.rotate = args.watermark_rotation
         watermark.opacity = 0.9
         watermark.position = args.watermark_position
-        im = watermark.add(im)
+        im = watermark.add_to_image(im)
 
     if args.width or args.height:
         im = resize(im, width=args.width, height=args.height)
@@ -393,7 +379,7 @@ def main():
             "Q": args.jpg_quality,
             "no_subsample": no_subsample,
             "interlace": progressive,
-            "strip": strip_exif,
+            "strip": not args.keep_exif,
         }
         LOG.info("Writing '%s' with options: %s", args.input, write_opts)
         im.write_to_file(args.output, **write_opts)

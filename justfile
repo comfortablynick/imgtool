@@ -1,17 +1,12 @@
-bin_name := 'imgtool'
+bin_name := 'imgtool.py'
 
 alias r := run
-alias b := build
-alias i := install
+alias build := testrun # in case vim calls it
+alias install := testrun # in case vim calls it
 
 # Run with optional args
 run +args='':
-	./imgtool.py {{args}}
+	./{{bin_name}} {{args}}
 
-# Define this in case vim calls it
-build:
-    python imgtool.py
-
-# Define this in case vim calls it
-install:
-    python imgtool.py
+testrun:
+    ./{{bin_name}} test/sunset.jpg test/sunset_edited.jpg -vv -mw 2000
