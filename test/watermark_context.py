@@ -12,7 +12,7 @@ import pyvips
 def avgze(image):
     """Zero-excluding average of an image.
 
-    return as an array, with the average for each band
+    Returns an array, with the average for each band
     """
     # since we use histograms
     if image.format != "uchar" and image.format != "ushort":
